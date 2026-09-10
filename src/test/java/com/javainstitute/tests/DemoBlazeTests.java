@@ -229,19 +229,50 @@ public class DemoBlazeTests extends BaseTest {
     // Helper methods (reused across tests to avoid duplicated code)
     // ---------------------------------------------------------------------
 
-    /** Navigates from the home page into a given product's detail page. */
+    /**
+     * Navigates from the home page into a given product's detail page.
+     * DemoBlaze occasionally re-renders elements via JavaScript right after
+     * a page loads, which can make an already-located element "stale" the
+     * instant we try to click it. clickWithRetry() below re-locates the
+     * element fresh and retries if that happens.
+     */
     private void navigateToProduct(String productName) {
         driver.get(BASE_URL);
-        WebElement phonesCategory = wait.until(ExpectedConditions.elementToBeClickable(
-                By.xpath("//a[@id='itemc' and text()='Phones']")));
-        phonesCategory.click();
-
-        WebElement productLink = wait.until(ExpectedConditions.elementToBeClickable(
-                By.xpath("//a[contains(text(),'" + productName + "')]")));
-        productLink.click();
+        clickWithRetry(By.xpath("//a[@id='itemc' and text()='Phones']"));
+        clickWithRetry(By.xpath("//a[contains(text(),'" + productName + "')]"));
     }
 
-    /** Navigates to a product page and adds it to the cart, accepting the resulting alert. */
+    /**
+     * Clicks an element identified by the given locator, retrying up to 5
+     * times if a StaleElementReferenceException occurs. The element is
+     * re-located fresh on every attempt, and a short pause is added between
+     * retries to let the page finish re-rendering.
+     */
+    private void clickWithRetry(By locator) {
+        wait.until(ExpectedConditions.presenceOfElementLocated(locator));
+
+        int attempts = 0;
+        while (true) {
+            try {
+                WebElement element = wait.until(ExpectedConditions.elementToBeClickable(locator));
+                element.click();
+                return; // success
+            } catch (org.openqa.selenium.StaleElementReferenceException e) {
+                attempts++;
+                if (attempts >= 5) {
+                    throw e;
+                }
+                try {
+                    Thread.sleep(400); // brief pause to let the DOM settle before retrying
+                } catch (InterruptedException ignored) {
+                }
+            }
+        }
+    }
+
+    /**
+     * Navigates to a product page and adds it to the cart, accepting the resulting alert.
+     */
     private void addProductToCartByName(String productName) {
         navigateToProduct(productName);
 
